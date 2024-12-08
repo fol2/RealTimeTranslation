@@ -18,6 +18,15 @@ interface SettingsProps {
   }) => void;
 }
 
+const getLanguageDisplayName = (lang: typeof config.languages[number]): string => {
+  // For English languages, just show the English name
+  if (lang.code.startsWith('en')) {
+    return lang.name;
+  }
+  // For other languages, show both English and native names
+  return `${lang.name} (${lang.nativeName})`;
+};
+
 const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, initialSettings, onUpdate }) => {
   const [inputLanguage, setInputLanguage] = useState(initialSettings.inputLanguage);
   const [outputLanguage, setOutputLanguage] = useState(initialSettings.outputLanguage);
@@ -72,7 +81,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, initialSettings, o
                 >
                   {config.languages.filter(lang => lang.code !== '').map((lang) => (
                     <option key={lang.code} value={lang.code}>
-                      {lang.name}
+                      {getLanguageDisplayName(lang)}
                     </option>
                   ))}
                 </select>
@@ -88,7 +97,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, initialSettings, o
                 >
                   {config.languages.filter(lang => lang.code !== '').map((lang) => (
                     <option key={lang.code} value={lang.code}>
-                      {lang.name}
+                      {getLanguageDisplayName(lang)}
                     </option>
                   ))}
                 </select>
@@ -104,7 +113,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, initialSettings, o
                 >
                   {config.languages.map((lang) => (
                     <option key={lang.code} value={lang.code}>
-                      {lang.name}
+                      {lang.code === '' ? 'None' : getLanguageDisplayName(lang)}
                     </option>
                   ))}
                 </select>

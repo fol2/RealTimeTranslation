@@ -163,7 +163,11 @@ const App: React.FC = () => {
               {error}
             </div>
           )}
-          <TranscriptBox transcripts={transcripts} />
+          <TranscriptBox 
+            transcripts={transcripts} 
+            outputLanguage={outputLanguage}
+            secondOutputLanguage={secondOutputLanguage}
+          />
         </div>
         <Settings 
           isOpen={isSettingsOpen} 
