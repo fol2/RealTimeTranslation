@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { TranscriptProps } from '../types';
 
-const Transcript = ({ transcripts }) => {
-  const transcriptRef = useRef(null);
+const Transcript: React.FC<TranscriptProps> = ({ transcripts }) => {
+  const transcriptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (transcriptRef.current) {

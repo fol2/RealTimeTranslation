@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { RecorderProps } from '../types';
 
-const Recorder = ({ socket, onError }) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
+const Recorder: React.FC<RecorderProps> = ({ socket, onError }) => {
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   const startRecording = useCallback(async () => {
     try {
@@ -11,7 +12,7 @@ const Recorder = ({ socket, onError }) => {
         mimeType: 'audio/webm',
       });
 
-      recorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event: BlobEvent) => {
         if (event.data.size > 0) {
           socket.emit('audioData', event.data);
         }
@@ -28,7 +29,7 @@ const Recorder = ({ socket, onError }) => {
         secondOutputLanguage: localStorage.getItem('secondOutputLanguage') || '',
       });
     } catch (error) {
-      onError('Error accessing microphone: ' + error.message);
+      onError(`Error accessing microphone: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [socket, onError]);
 

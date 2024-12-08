@@ -1,27 +1,28 @@
 import { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import Recorder from './components/Recorder';
 import Transcript from './components/Transcript';
 import Settings from './components/Settings';
+import { TranscriptEntry } from './types';
 import './App.css';
 
-const socket = io('http://localhost:3001');
+const socket: Socket = io('http://localhost:3001');
 
 function App() {
-  const [transcripts, setTranscripts] = useState([]);
-  const [error, setError] = useState(null);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+  const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<string>(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Connected to server');
     });
 
-    socket.on('error', (error) => {
+    socket.on('error', (error: { message: string }) => {
       setError(error.message);
     });
 
-    socket.on('partialTranscript', (data) => {
+    socket.on('partialTranscript', (data: Omit<TranscriptEntry, 'type'>) => {
       setTranscripts(prev => {
         const newTranscripts = [...prev];
         if (newTranscripts.length > 0 && newTranscripts[newTranscripts.length - 1].type === 'partial') {
@@ -33,7 +34,7 @@ function App() {
       });
     });
 
-    socket.on('finalTranscript', (data) => {
+    socket.on('finalTranscript', (data: Omit<TranscriptEntry, 'type'>) => {
       setTranscripts(prev => {
         const newTranscripts = [...prev];
         if (newTranscripts.length > 0 && newTranscripts[newTranscripts.length - 1].type === 'partial') {
@@ -53,7 +54,7 @@ function App() {
     };
   }, []);
 
-  const handleError = (message) => {
+  const handleError = (message: string) => {
     setError(message);
     setTimeout(() => setError(null), 5000);
   };

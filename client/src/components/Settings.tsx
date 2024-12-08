@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
+import { SettingsProps, Language } from '../types';
 
-const Settings = ({ onThemeChange }) => {
-  const [inputLanguage, setInputLanguage] = useState(localStorage.getItem('inputLanguage') || 'en-US');
-  const [outputLanguage, setOutputLanguage] = useState(localStorage.getItem('outputLanguage') || 'yue');
-  const [secondOutputLanguage, setSecondOutputLanguage] = useState(localStorage.getItem('secondOutputLanguage') || '');
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+const Settings: React.FC<SettingsProps> = ({ onThemeChange }) => {
+  const [inputLanguage, setInputLanguage] = useState<string>(localStorage.getItem('inputLanguage') || 'en-US');
+  const [outputLanguage, setOutputLanguage] = useState<string>(localStorage.getItem('outputLanguage') || 'yue');
+  const [secondOutputLanguage, setSecondOutputLanguage] = useState<string>(localStorage.getItem('secondOutputLanguage') || '');
+  const [theme, setTheme] = useState<string>(localStorage.getItem('theme') || 'dark');
 
-  const languages = [
+  const languages: Language[] = [
     { code: 'en-US', name: 'English (US)' },
     { code: 'yue', name: 'Cantonese' },
     { code: 'zh-Hans', name: 'Chinese (Simplified)' },

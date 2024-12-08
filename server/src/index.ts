@@ -1,37 +1,52 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { Server } = require('socket.io');
-const http = require('http');
-const sdk = require('microsoft-cognitiveservices-speech-sdk');
+import 'dotenv/config';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server, Socket } from 'socket.io';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+
+interface ActiveRecognizer {
+  recognizer: sdk.TranslationRecognizer;
+  pushStream: sdk.AudioInputStream;
+}
+
+interface TranslationConfig {
+  inputLanguage: string;
+  outputLanguage: string;
+  secondOutputLanguage?: string;
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const server = http.createServer(app);
+const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // In production, replace with your frontend URL
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
 // Store active translation recognizers
-const activeRecognizers = new Map();
+const activeRecognizers = new Map<string, ActiveRecognizer>();
 
-io.on('connection', (socket) => {
+io.on('connection', (socket: Socket) => {
   console.log('Client connected:', socket.id);
 
-  socket.on('startTranslation', async (config) => {
+  socket.on('startTranslation', async (config: TranslationConfig) => {
     try {
       const speechConfig = sdk.SpeechTranslationConfig.fromSubscription(
-        process.env.SPEECH_KEY,
-        process.env.SPEECH_REGION
+        process.env.SPEECH_KEY || '',
+        process.env.SPEECH_REGION || ''
       );
 
+      if (!process.env.SPEECH_KEY || !process.env.SPEECH_REGION) {
+        throw new Error("Speech credentials not found. Please check your .env file.");
+      }
+
       // Configure speech recognition
-      speechConfig.speechRecognitionLanguage = config.inputLanguage || 'en-US';
+      speechConfig.speechRecognitionLanguage = config.inputLanguage;
       
       // Add target languages
       if (config.outputLanguage) {
@@ -49,7 +64,7 @@ io.on('connection', (socket) => {
       const recognizer = new sdk.TranslationRecognizer(speechConfig, audioConfig);
 
       // Handle partial results
-      recognizer.recognizing = (s, e) => {
+      recognizer.recognizing = (s: sdk.Recognizer, e: sdk.TranslationRecognitionEventArgs) => {
         if (e.result.reason === sdk.ResultReason.TranslatingSpeech) {
           socket.emit('partialTranscript', {
             original: e.result.text,
@@ -59,7 +74,7 @@ io.on('connection', (socket) => {
       };
 
       // Handle final results
-      recognizer.recognized = (s, e) => {
+      recognizer.recognized = (s: sdk.Recognizer, e: sdk.TranslationRecognitionEventArgs) => {
         if (e.result.reason === sdk.ResultReason.TranslatedSpeech) {
           socket.emit('finalTranscript', {
             original: e.result.text,
@@ -69,7 +84,7 @@ io.on('connection', (socket) => {
       };
 
       // Handle errors
-      recognizer.canceled = (s, e) => {
+      recognizer.canceled = (s: sdk.Recognizer, e: sdk.TranslationRecognitionCanceledEventArgs) => {
         if (e.reason === sdk.CancellationReason.Error) {
           socket.emit('error', {
             message: `Error: ${e.errorDetails}`
@@ -97,7 +112,7 @@ io.on('connection', (socket) => {
       });
 
       // Handle incoming audio data
-      socket.on('audioData', (data) => {
+      socket.on('audioData', (data: ArrayBuffer) => {
         const active = activeRecognizers.get(socket.id);
         if (active && active.pushStream) {
           active.pushStream.write(data);
@@ -123,7 +138,7 @@ io.on('connection', (socket) => {
 });
 
 // Helper function to stop recognition
-function stopRecognition(socketId) {
+function stopRecognition(socketId: string): void {
   const active = activeRecognizers.get(socketId);
   if (active) {
     const { recognizer, pushStream } = active;
@@ -139,7 +154,7 @@ function stopRecognition(socketId) {
 }
 
 // Basic health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
