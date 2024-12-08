@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 import os
+import json
 from dotenv import load_dotenv
 import azure.cognitiveservices.speech as speechsdk
 import threading
@@ -10,6 +11,8 @@ import platform
 # Load environment variables
 load_dotenv()
 
+SETTINGS_FILE = "settings.json"
+
 class TranslatorApp:
     def __init__(self, root):
         print("Initializing GUI...")
@@ -18,51 +21,95 @@ class TranslatorApp:
         
         # Make the window always on top and semi-transparent
         self.root.wm_attributes("-topmost", True)
-        self.root.wm_attributes("-alpha", 0.85)
+        self.root.wm_attributes("-alpha", 0.95)
         
-        # Use a modern, minimal layout
-        self.root.configure(bg="#F0F0F0")  # Light background
-        self.root.geometry("600x400")
-
+        # Dark background and bright text for a modern look
+        self.root.configure(bg="#1E1E1E")
+        self.root.geometry("700x500")
+        
         self.is_running = False
         self.translation_recognizer = None
         self.recognition_thread = None
         
-        # Default settings
-        self.input_language = "en-US"
-        self.output_language = "yue"
-
+        # Load settings (input_language, output_language, second_output_language)
+        self.load_settings()
+        
         # Create main UI
         self.create_main_ui()
         
-        # Bind a shortcut to open settings
-        self.root.bind("<Control-s>", self.open_settings_window)
-
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
+    def load_settings(self):
+        # Default settings if no file found
+        default_settings = {
+            "input_language": "en-US",
+            "output_language": "yue",
+            "second_output_language": ""
+        }
+        
+        if os.path.exists(SETTINGS_FILE):
+            try:
+                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.input_language = data.get("input_language", default_settings["input_language"])
+                self.output_language = data.get("output_language", default_settings["output_language"])
+                self.second_output_language = data.get("second_output_language", default_settings["second_output_language"])
+            except:
+                self.input_language = default_settings["input_language"]
+                self.output_language = default_settings["output_language"]
+                self.second_output_language = default_settings["second_output_language"]
+        else:
+            self.input_language = default_settings["input_language"]
+            self.output_language = default_settings["output_language"]
+            self.second_output_language = default_settings["second_output_language"]
+        
+    def save_settings(self):
+        data = {
+            "input_language": self.input_language,
+            "output_language": self.output_language,
+            "second_output_language": self.second_output_language
+        }
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        
     def create_main_ui(self):
-        # A frame for the control buttons
-        control_frame = tk.Frame(self.root, bg="#F0F0F0")
-        control_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
-
+        # Style configuration for ttk
+        style = ttk.Style(self.root)
+        style.configure("TButton", background="#3C3C3C", foreground="#FFFFFF", padding=6)
+        style.configure("TLabel", background="#1E1E1E", foreground="#FFFFFF")
+        style.configure("TFrame", background="#1E1E1E")
+        
+        # Top control frame
+        control_frame = ttk.Frame(self.root)
+        control_frame.pack(side=tk.TOP, fill=tk.X, pady=10, padx=10)
+        
         # Start / Stop Button
         self.start_button = ttk.Button(control_frame, text="Start", command=self.toggle_recognition)
-        self.start_button.pack(side=tk.LEFT, padx=10)
+        self.start_button.pack(side=tk.LEFT, padx=(0,10))
+        
+        # Clear History Button
+        self.clear_button = ttk.Button(control_frame, text="Clear History", command=self.clear_history)
+        self.clear_button.pack(side=tk.LEFT, padx=(0,10))
+        
+        # Settings icon (gear)
+        # Using a unicode gear icon "⚙️", or ASCII fallback
+        settings_button = ttk.Button(control_frame, text="⚙️", command=self.open_settings_window)
+        settings_button.pack(side=tk.RIGHT)
         
         # Transcription display
         self.recognition_text = scrolledtext.ScrolledText(
             self.root, 
-            height=10, 
+            height=10,
             wrap=tk.WORD, 
             font=("Helvetica", 16), 
-            bg="#FFFFFF", 
-            fg="#000000",
+            bg="#2D2D2D", 
+            fg="#FFFFFF",
             borderwidth=0, 
             highlightthickness=0
         )
         self.recognition_text.pack(fill="both", expand=True, padx=20, pady=20)
-
+        
     def toggle_recognition(self):
         if self.is_running:
             self.stop_recognition()
@@ -72,10 +119,12 @@ class TranslatorApp:
     def start_recognition(self):
         if self.is_running:
             return
-            
         try:
             self.is_running = True
             self.start_button.configure(text="Stop", state="disabled")
+            
+            # Initialize the text mark at the end of the text widget
+            self.recognition_text.mark_set("current_recognition_start", tk.END)
             
             # Start recognition in a separate thread
             self.recognition_thread = threading.Thread(target=self.recognition_thread_func, daemon=True)
@@ -86,7 +135,7 @@ class TranslatorApp:
             self.update_display(f"Error starting recognition: {str(e)}\n", "error")
             self.is_running = False
             self.start_button.configure(text="Start", state="normal")
-            
+    
     def recognition_thread_func(self):
         try:
             # Configure speech translation
@@ -98,16 +147,22 @@ class TranslatorApp:
             if not os.getenv('SPEECH_KEY') or not os.getenv('SPEECH_REGION'):
                 raise Exception("Speech credentials not found. Please check your .env file.")
             
+            # Set the input and target languages
             speech_config.speech_recognition_language = self.input_language
-            to_language = self.output_language
-            speech_config.add_target_language(to_language)
-            # Optional: add any other properties if needed
-            # speech_config.enable_dictation()
-            # speech_config.set_property(speechsdk.PropertyId.Speech_SegmentationStrategy, "Semantic")
+            
+            # Add the target languages (for bilingual)
+            target_langs = []
+            if self.output_language:
+                target_langs.append(self.output_language)
+            if self.second_output_language and self.second_output_language.strip():
+                target_langs.append(self.second_output_language)
+            
+            # Add them to config
+            for lang in target_langs:
+                speech_config.add_target_language(lang)
 
-            # On macOS and other platforms, we rely on default input device
-            # Ensure the system default input device is what you want (e.g., BlackHole on macOS)
-            print("Using default microphone (system default input device).")
+            # On macOS and other platforms, rely on default input device
+            print("Using default microphone (system default input).")
             audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
             
             self.translation_recognizer = speechsdk.translation.TranslationRecognizer(
@@ -118,14 +173,19 @@ class TranslatorApp:
             def handle_recognizing(event):
                 result = event.result
                 if result.reason == speechsdk.ResultReason.TranslatingSpeech:
-                    translated_text = result.translations[to_language]
-                    self.root.after(0, lambda text=translated_text: self.update_display(text, "recognizing"))
+                    # We have original text and possibly multiple translations
+                    original_text = result.text
+                    translations = result.translations
+                    
+                    self.root.after(0, lambda: self.update_bilingual_display(original_text, translations, "recognizing"))
             
             def handle_recognized(event):
                 result = event.result
                 if result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                    translated_text = result.translations[to_language]
-                    self.root.after(0, lambda text=translated_text: self.update_display(text + "。", "final"))
+                    original_text = result.text
+                    translations = result.translations
+                    # final result
+                    self.root.after(0, lambda: self.update_bilingual_display(original_text, translations, "final"))
                 elif result.reason == speechsdk.ResultReason.NoMatch:
                     self.root.after(0, lambda: self.update_display("No speech could be recognized.\n", "error"))
             
@@ -173,66 +233,89 @@ class TranslatorApp:
         self.stop_recognition()
         self.root.destroy()
     
+    def update_bilingual_display(self, original_text, translations, status):
+        # Build the text block
+        text_block = f"Original ({self.input_language}): {original_text}"
+        for lang, trans in translations.items():
+            text_block += f"\nTranslation ({lang}): {trans}"
+
+        if status == "recognizing":
+            # If there's a currently displayed partial line, remove it first
+            if self.recognition_text.tag_ranges("current_recognition"):
+                self.recognition_text.delete("current_recognition.first", "current_recognition.last")
+
+            # Insert a new line with the current partial recognition at the end
+            start_index = self.recognition_text.index(tk.END)
+            # If there's already text, insert a newline first so each partial is on its own line
+            if self.recognition_text.index(tk.END) != "1.0":
+                self.recognition_text.insert(tk.END, "\n")
+            self.recognition_text.insert(tk.END, text_block)
+            
+            end_index = self.recognition_text.index(tk.END)
+            # Tag this newly inserted text as the current partial recognition
+            self.recognition_text.tag_add("current_recognition", start_index, end_index)
+
+        else:  # "final"
+            # On final recognition, finalize the current partial line
+            if self.recognition_text.tag_ranges("current_recognition"):
+                # Just remove the tag; we keep the text as is since it's now final
+                self.recognition_text.tag_remove("current_recognition", "current_recognition.first", "current_recognition.last")
+
+            # Add a newline ready for the next recognition sequence
+            self.recognition_text.insert(tk.END, "\n")
+
+        self.recognition_text.see(tk.END)
+        
     def update_display(self, text, status):
+        # For simple error messages or direct inserts
         content = self.recognition_text.get("1.0", tk.END).strip()
         lines = content.splitlines()
         
-        if status == "recognizing":
-            if not lines or lines[-1].endswith('。'):
-                if lines:
-                    self.recognition_text.insert(tk.END, "\n")
-                self.recognition_text.insert(tk.END, text)
-            else:
-                last_line_start = f"{len(lines)}.0"
-                last_line_end = f"{len(lines)}.end"
-                self.recognition_text.delete(last_line_start, last_line_end)
-                self.recognition_text.insert(last_line_start, text)
-            
-        elif status == "final":
-            if not lines or lines[-1].endswith('。'):
-                if lines:
-                    self.recognition_text.insert(tk.END, "\n")
-                self.recognition_text.insert(tk.END, text)
-            else:
-                last_line_start = f"{len(lines)}.0"
-                last_line_end = f"{len(lines)}.end"
-                self.recognition_text.delete(last_line_start, last_line_end)
-                self.recognition_text.insert(last_line_start, text)
-            
-        elif status == "error":
+        if status == "error":
             self.recognition_text.insert(tk.END, "\n" + text)
+        else:
+            # Just append text
+            if lines:
+                self.recognition_text.insert(tk.END, "\n" + text)
+            else:
+                self.recognition_text.insert(tk.END, text)
         
         self.recognition_text.see(tk.END)
         
-    def open_settings_window(self, event=None):
-        # Open a separate settings window when user presses Ctrl+S
-        # Here we put all settings (like input_language, output_language)
-        # For simplicity, we show just two comboboxes and an apply button.
-        
+    def clear_history(self):
+        self.recognition_text.delete(1.0, tk.END)
+    
+    def open_settings_window(self):
+        # Use Entry widgets instead of Comboboxes
         settings_win = tk.Toplevel(self.root)
         settings_win.title("Settings")
-        settings_win.geometry("300x200")
+        settings_win.geometry("300x250")
         settings_win.transient(self.root)
         settings_win.grab_set()
         
-        tk.Label(settings_win, text="Input Language:").pack(pady=5)
-        input_langs = ["en-US", "en-GB", "zh-CN", "ja-JP", "ko-KR"]
-        input_combo = ttk.Combobox(settings_win, values=input_langs, state="readonly")
-        input_combo.set(self.input_language)
-        input_combo.pack(pady=5)
+        ttk.Label(settings_win, text="Input Language (e.g., en-US):").pack(pady=5)
+        input_entry = ttk.Entry(settings_win)
+        input_entry.insert(0, self.input_language)
+        input_entry.pack(pady=5)
         
-        tk.Label(settings_win, text="Output Language:").pack(pady=5)
-        output_langs = ["yue", "zh-Hans", "ja", "ko", "en"]
-        output_combo = ttk.Combobox(settings_win, values=output_langs, state="readonly")
-        output_combo.set(self.output_language)
-        output_combo.pack(pady=5)
-
+        ttk.Label(settings_win, text="Output Language (e.g., yue):").pack(pady=5)
+        output_entry = ttk.Entry(settings_win)
+        output_entry.insert(0, self.output_language)
+        output_entry.pack(pady=5)
+        
+        ttk.Label(settings_win, text="Second Output Language (optional, e.g., ja):").pack(pady=5)
+        second_output_entry = ttk.Entry(settings_win)
+        second_output_entry.insert(0, self.second_output_language)
+        second_output_entry.pack(pady=5)
+        
         def apply_settings():
-            self.input_language = input_combo.get()
-            self.output_language = output_combo.get()
+            self.input_language = input_entry.get()
+            self.output_language = output_entry.get()
+            self.second_output_language = second_output_entry.get()
+            self.save_settings()
             settings_win.destroy()
         
-        apply_button = ttk.Button(settings_win, text="Apply", command=apply_settings)
+        apply_button = ttk.Button(settings_win, text="Save & Close", command=apply_settings)
         apply_button.pack(pady=10)
 
 if __name__ == "__main__":
