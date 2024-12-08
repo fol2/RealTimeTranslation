@@ -21,13 +21,21 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const { theme, toggleTheme } = useTheme();
 
+  const handleRecordingToggle = () => {
+    if (!isRecording) {
+      // When starting recording, always switch to transcription tab
+      onTabChange('transcription');
+    }
+    onToggleRecording();
+  };
+
   return (
     <header className="bg-indigo-600 dark:bg-indigo-800 text-white p-4 sm:p-6">
       <div className="flex flex-wrap justify-between items-center">
         <h1 className="text-2xl font-bold mb-4 sm:mb-0">Real-Time Translator</h1>
         <div className="flex flex-wrap justify-center sm:justify-end space-x-2 sm:space-x-4">
           <button
-            onClick={onToggleRecording}
+            onClick={handleRecordingToggle}
             className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-300 transform hover:scale-105 ${
               isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
             }`}
@@ -46,14 +54,24 @@ const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={onClearHistory}
-            className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-full transition-all duration-300 transform hover:scale-105"
+            disabled={activeTab === 'history'}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-300 transform ${
+              activeTab === 'history'
+                ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                : 'bg-gray-600 hover:bg-gray-700 hover:scale-105'
+            }`}
           >
             <TrashIcon className="h-5 w-5" />
             <span className="hidden sm:inline">Clear</span>
           </button>
           <button
             onClick={onOpenSettings}
-            className="flex items-center space-x-2 px-3 py-2 bg-indigo-700 hover:bg-indigo-800 rounded-full transition-all duration-300 transform hover:scale-105"
+            disabled={activeTab === 'history'}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-300 transform ${
+              activeTab === 'history'
+                ? 'bg-indigo-400 cursor-not-allowed opacity-50'
+                : 'bg-indigo-700 hover:bg-indigo-800 hover:scale-105'
+            }`}
           >
             <CogIcon className="h-5 w-5" />
             <span className="hidden sm:inline">Settings</span>
