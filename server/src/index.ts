@@ -1,9 +1,11 @@
 import express from 'express';
-import { createServer } from 'http';
+import { createServer } from 'https';
 import { Server } from 'socket.io';
 import * as speechsdk from 'microsoft-cognitiveservices-speech-sdk';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
@@ -15,6 +17,12 @@ REQUIRED_ENV_VARS.forEach(varName => {
     throw new Error(`Missing required environment variable: ${varName}`);
   }
 });
+
+// SSL configuration
+const sslOptions = {
+  key: fs.readFileSync(path.join(__dirname, '../../certs/key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, '../../certs/cert.pem')),
+};
 
 // Types
 interface TranslationConfig {
@@ -29,13 +37,28 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN;
 
 // Create Express app and Socket.io server
 const app = express();
-const httpServer = createServer(app);
+const httpServer = createServer(sslOptions, app);
+
+// Allow both HTTP and HTTPS origins
+const allowedOrigins = [
+  'https://192.168.50.177:38220',
+  'http://192.168.50.177:38220',
+  'https://localhost:38220',
+  'http://localhost:38220'
+];
+
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Accept']
+    allowedHeaders: ['Content-Type', 'Accept', 'Origin']
   },
   pingTimeout: 60000,
   pingInterval: 25000
@@ -43,10 +66,16 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Accept']
+  allowedHeaders: ['Content-Type', 'Accept', 'Origin']
 }));
 app.use(express.json());
 

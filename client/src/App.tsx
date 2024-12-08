@@ -105,18 +105,24 @@ const App: React.FC = () => {
 
     if (!isRecording) {
       try {
+        // Get the current hostname and protocol
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        const hostname = window.location.hostname;
+        const serverUrl = `${protocol}//${hostname}:38221`;
+
         await speechServiceRef.current.startTranslation({
           inputLanguage,
           outputLanguage,
           secondOutputLanguage: secondOutputLanguage || undefined,
           server: {
-            apiUrl: config.server.apiUrl
+            apiUrl: serverUrl
           }
         });
         setIsRecording(true);
         setError(null);
       } catch (error) {
-        setError(error.message);
+        console.error('Translation error:', error);
+        setError(typeof error === 'string' ? error : error.message || 'Failed to start translation');
       }
     } else {
       await speechServiceRef.current.stopTranslation();

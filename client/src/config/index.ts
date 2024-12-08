@@ -4,8 +4,8 @@
  */
 export const config = {
   server: {
-    apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:38221',
-    wsUrl: import.meta.env.VITE_WS_URL || 'ws://localhost:38221',
+    apiUrl: import.meta.env.VITE_API_URL || 'https://192.168.50.177:38221',
+    wsUrl: import.meta.env.VITE_WS_URL || 'wss://192.168.50.177:38221',
   },
   
   defaultSettings: {

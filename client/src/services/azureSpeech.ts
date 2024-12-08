@@ -45,15 +45,19 @@ export class AzureSpeechService {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin
+        },
+        mode: 'cors'
       });
-      console.log('Speech token response status:', response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to fetch speech token: ${response.statusText}. Details: ${errorText}`);
+        console.error('Failed to get speech token:', response.status, errorText);
+        throw new Error(`Failed to get speech token: ${response.status} ${errorText}`);
       }
+
+      console.log('Speech token response status:', response.status);
       
       const data = await response.json();
       console.log('Received speech token response:', {
