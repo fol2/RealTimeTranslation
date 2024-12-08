@@ -13,6 +13,10 @@ def recognize_from_microphone():
     )
     speech_translation_config.speech_recognition_language="en-GB"
 
+    speech_translation_config.enable_dictation()
+
+    speech_translation_config.set_property(speechsdk.PropertyId.Speech_SegmentationStrategy, "Semantic")
+    
     to_language ="yue"
     speech_translation_config.add_target_language(to_language)
 
