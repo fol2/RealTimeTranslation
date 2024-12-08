@@ -6,7 +6,7 @@ import { TranscriptEntry } from './types';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AzureSpeechService } from './services/azureSpeech';
 import { SettingsService } from './services/settings';
-import config from './config';
+import { config } from './config';
 
 const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -30,20 +30,61 @@ const App: React.FC = () => {
     speechServiceRef.current = new AzureSpeechService(
       // Interim results
       (original, translations) => {
+        console.log('Interim result:', { original, translations });
         setTranscripts(prev => {
-          const newTranscripts = [...prev];
-          // Update the last transcript if it's interim, or add a new one
-          if (newTranscripts.length > 0) {
-            newTranscripts[newTranscripts.length - 1] = { original, translations };
-          } else {
-            newTranscripts.push({ original, translations });
+          // Find the last non-final transcript if it exists
+          const lastTranscript = prev[prev.length - 1];
+          if (lastTranscript && !lastTranscript.isFinal) {
+            // Update the last transcript
+            const updatedTranscript = { 
+              original, 
+              translations: translations || [], 
+              isFinal: false 
+            };
+            console.log('Updating interim transcript:', updatedTranscript);
+            return [
+              ...prev.slice(0, -1),
+              updatedTranscript
+            ];
           }
-          return newTranscripts;
+          // Add a new transcript
+          const newTranscript = { 
+            original, 
+            translations: translations || [], 
+            isFinal: false 
+          };
+          console.log('Adding new interim transcript:', newTranscript);
+          return [...prev, newTranscript];
         });
       },
       // Final results
       (original, translations) => {
-        setTranscripts(prev => [...prev, { original, translations }]);
+        console.log('Final result:', { original, translations });
+        setTranscripts(prev => {
+          // Find the last transcript
+          const lastTranscript = prev[prev.length - 1];
+          if (lastTranscript && !lastTranscript.isFinal) {
+            // Update the last transcript and mark as final
+            const updatedTranscript = { 
+              original, 
+              translations: translations || [], 
+              isFinal: true 
+            };
+            console.log('Updating final transcript:', updatedTranscript);
+            return [
+              ...prev.slice(0, -1),
+              updatedTranscript
+            ];
+          }
+          // Add a new final transcript
+          const newTranscript = { 
+            original, 
+            translations: translations || [], 
+            isFinal: true 
+          };
+          console.log('Adding new final transcript:', newTranscript);
+          return [...prev, newTranscript];
+        });
       },
       // Error handling
       (error) => {
@@ -67,7 +108,10 @@ const App: React.FC = () => {
         await speechServiceRef.current.startTranslation({
           inputLanguage,
           outputLanguage,
-          secondOutputLanguage: secondOutputLanguage || undefined
+          secondOutputLanguage: secondOutputLanguage || undefined,
+          server: {
+            apiUrl: config.server.apiUrl
+          }
         });
         setIsRecording(true);
         setError(null);

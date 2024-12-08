@@ -5,6 +5,9 @@ interface TranslationConfig {
   inputLanguage: string;
   outputLanguage: string;
   secondOutputLanguage?: string;
+  server: {
+    apiUrl: string;
+  };
 }
 
 export class AzureSpeechService {
@@ -17,7 +20,7 @@ export class AzureSpeechService {
     private onError: (error: string) => void
   ) {}
 
-  async startTranslation(translationConfig: TranslationConfig) {
+  async startTranslation(config: TranslationConfig) {
     if (this.isRecognizing) {
       console.log('Translation already in progress, stopping current session...');
       await this.stopTranslation();
@@ -35,9 +38,9 @@ export class AzureSpeechService {
         throw new Error('Microphone access is required for speech recognition. Please allow microphone access and try again.');
       }
 
-      console.log('Starting translation with config:', translationConfig);
-      
-      // Get credentials from environment
+      console.log('Starting translation with config:', config);
+
+      // Get token from server
       const response = await fetch(`${config.server.apiUrl}/api/speech-token`, {
         method: 'GET',
         headers: {
@@ -53,37 +56,38 @@ export class AzureSpeechService {
       }
       
       const data = await response.json();
-      console.log('Received speech token response:', { hasToken: !!data.token, hasRegion: !!data.region });
-      
+      console.log('Received speech token response:', {
+        hasToken: !!data.token,
+        hasRegion: !!data.region
+      });
+
       if (!data.token || !data.region) {
-        throw new Error('Speech credentials not found in response');
+        throw new Error('Failed to get speech token or region');
       }
 
-      // Configure speech translation
+      // Configure speech service
       console.log('Configuring speech translation...');
       const speechConfig = speechsdk.SpeechTranslationConfig.fromAuthorizationToken(
         data.token,
         data.region
       );
 
-      // Set languages
+      // Configure languages
       console.log('Setting languages:', {
-        input: translationConfig.inputLanguage,
-        output: translationConfig.outputLanguage,
-        second: translationConfig.secondOutputLanguage
+        input: config.inputLanguage,
+        output: config.outputLanguage,
+        second: config.secondOutputLanguage
       });
-      
-      speechConfig.speechRecognitionLanguage = translationConfig.inputLanguage;
+
+      speechConfig.speechRecognitionLanguage = config.inputLanguage;
       
       // Add target languages
-      if (translationConfig.outputLanguage) {
-        speechConfig.addTargetLanguage(translationConfig.outputLanguage);
-      }
-      if (translationConfig.secondOutputLanguage) {
-        speechConfig.addTargetLanguage(translationConfig.secondOutputLanguage);
+      speechConfig.addTargetLanguage(config.outputLanguage);
+      if (config.secondOutputLanguage) {
+        speechConfig.addTargetLanguage(config.secondOutputLanguage);
       }
 
-      // Configure audio with properties for better recognition
+      // Configure audio
       console.log('Configuring audio input...');
       const audioConfig = speechsdk.AudioConfig.fromDefaultMicrophoneInput();
 
@@ -103,11 +107,16 @@ export class AzureSpeechService {
       this.translationRecognizer.recognizing = (_, event) => {
         const result = event.result;
         if (result.reason === speechsdk.ResultReason.TranslatingSpeech) {
-          console.log('Recognizing speech...', result.text);
-          // Extract translation text from the translations map
-          const translations = Object.values(result.translations).map(t => 
-            typeof t === 'string' ? t : ''
-          ).filter(Boolean);
+          console.log('Recognizing speech...', {
+            text: result.text,
+            rawTranslations: result.translations,
+          });
+          
+          // Extract translations directly from the raw response
+          const translationsObj = result.translations as any;
+          const translations = translationsObj?.privMap?.privValues || [];
+          
+          console.log('Extracted interim translations:', translations);
           this.onRecognizing(result.text, translations);
         } else {
           console.log('Recognizing event with reason:', result.reason);
@@ -117,11 +126,16 @@ export class AzureSpeechService {
       this.translationRecognizer.recognized = (_, event) => {
         const result = event.result;
         if (result.reason === speechsdk.ResultReason.TranslatedSpeech) {
-          console.log('Recognized speech:', result.text);
-          // Extract translation text from the translations map
-          const translations = Object.values(result.translations).map(t => 
-            typeof t === 'string' ? t : ''
-          ).filter(Boolean);
+          console.log('Recognized speech:', {
+            text: result.text,
+            rawTranslations: result.translations,
+          });
+          
+          // Extract translations directly from the raw response
+          const translationsObj = result.translations as any;
+          const translations = translationsObj?.privMap?.privValues || [];
+          
+          console.log('Extracted final translations:', translations);
           this.onRecognized(result.text, translations);
         } else if (result.reason === speechsdk.ResultReason.NoMatch) {
           const noMatchDetail = speechsdk.NoMatchDetails.fromResult(result);

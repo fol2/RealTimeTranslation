@@ -28,9 +28,9 @@ const TranscriptBox: React.FC<TranscriptBoxProps> = ({ transcripts }) => {
             className="mb-6 last:mb-0 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm"
           >
             <div className="text-lg font-semibold text-indigo-700 dark:text-indigo-300 mb-2">{entry.original}</div>
-            {Object.entries(entry.translations).map(([lang, text]) => (
-              <div key={lang} className="mt-2">
-                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{lang}:</span>
+            {entry.translations.map((text, index) => (
+              <div key={index} className="mt-2">
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Translation {index + 1}:</span>
                 <span className="ml-2 text-gray-800 dark:text-gray-200">{text}</span>
               </div>
             ))}
@@ -47,4 +47,3 @@ const TranscriptBox: React.FC<TranscriptBoxProps> = ({ transcripts }) => {
 };
 
 export default TranscriptBox;
-
