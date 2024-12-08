@@ -1,13 +1,9 @@
 import * as speechsdk from 'microsoft-cognitiveservices-speech-sdk';
-import { AuthService } from './auth';
 
 interface TranslationConfig {
   inputLanguage: string;
   outputLanguage: string;
   secondOutputLanguage?: string;
-  server: {
-    apiUrl: string;
-  };
 }
 
 export class AzureSpeechService {
@@ -40,42 +36,19 @@ export class AzureSpeechService {
 
       console.log('Starting translation with config:', config);
 
-      // Get token from server
-      const token = await this.getVercelToken();
-      const response = await fetch(`${config.server.apiUrl}/api/speech-token`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin,
-          'Authorization': `Bearer ${token}`
-        },
-        mode: 'cors'
-      });
+      // Configure speech service directly with subscription key
+      const speechKey = import.meta.env.VITE_AZURE_SPEECH_KEY;
+      const speechRegion = import.meta.env.VITE_AZURE_SPEECH_REGION;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to get speech token:', response.status, errorText);
-        throw new Error(`Failed to get speech token: ${response.status} ${errorText}`);
-      }
-
-      console.log('Speech token response status:', response.status);
-      
-      const data = await response.json();
-      console.log('Received speech token response:', {
-        hasToken: !!data.token,
-        hasRegion: !!data.region
-      });
-
-      if (!data.token || !data.region) {
-        throw new Error('Failed to get speech token or region');
+      if (!speechKey || !speechRegion) {
+        throw new Error('Azure Speech configuration is missing. Please check your environment variables.');
       }
 
       // Configure speech service
       console.log('Configuring speech translation...');
-      const speechConfig = speechsdk.SpeechTranslationConfig.fromAuthorizationToken(
-        data.token,
-        data.region
+      const speechConfig = speechsdk.SpeechTranslationConfig.fromSubscription(
+        speechKey,
+        speechRegion
       );
 
       // Configure languages
@@ -118,9 +91,9 @@ export class AzureSpeechService {
             rawTranslations: result.translations,
           });
           
-          // Extract translations directly from the raw response
+          // Extract translations properly from the PropertyCollection
           const translationsObj = result.translations as any;
-          const translations = translationsObj?.privMap?.privValues || [];
+          const translations = Object.values(translationsObj.privMap.privValues) as string[];
           
           console.log('Extracted interim translations:', translations);
           this.onRecognizing(result.text, translations);
@@ -137,9 +110,9 @@ export class AzureSpeechService {
             rawTranslations: result.translations,
           });
           
-          // Extract translations directly from the raw response
+          // Extract translations properly from the PropertyCollection
           const translationsObj = result.translations as any;
-          const translations = translationsObj?.privMap?.privValues || [];
+          const translations = Object.values(translationsObj.privMap.privValues) as string[];
           
           console.log('Extracted final translations:', translations);
           this.onRecognized(result.text, translations);
@@ -150,7 +123,6 @@ export class AzureSpeechService {
               noMatchDetail.reason === speechsdk.NoMatchReason.NotRecognized) {
             console.debug('Silence detected, continuing to listen...');
           } else {
-            // Only show error for actual recognition problems
             console.warn('No speech could be recognized:', noMatchDetail.reason);
             this.onError(`Speech recognition error: ${noMatchDetail.reason}`);
           }
@@ -169,16 +141,7 @@ export class AzureSpeechService {
         if (event.reason === speechsdk.CancellationReason.Error) {
           const errorMessage = `Error: ${event.errorDetails} (Code: ${event.errorCode})`;
           console.error(errorMessage);
-          
-          // If it's an authorization error, try to restart with a new token
-          if (event.errorCode === speechsdk.CancellationErrorCode.AuthenticationFailure || 
-              event.errorCode === speechsdk.CancellationErrorCode.Forbidden) {
-            console.log('Authorization error, stopping current session...');
-            await this.stopTranslation();
-            this.onError('Session expired. Please try again.');
-          } else {
-            this.onError(errorMessage);
-          }
+          this.onError(errorMessage);
         }
         await this.stopTranslation();
       };
@@ -208,27 +171,13 @@ export class AzureSpeechService {
     console.log('Stopping translation...');
     if (this.translationRecognizer) {
       try {
-        if (this.isRecognizing) {
-          await this.translationRecognizer.stopContinuousRecognitionAsync();
-        }
+        await this.translationRecognizer.stopContinuousRecognitionAsync();
         this.translationRecognizer.close();
-        this.translationRecognizer = null;
-        this.isRecognizing = false;
-        console.log('Translation stopped successfully');
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error('Error stopping translation:', errorMessage);
-        this.onError(errorMessage);
+        console.error('Error stopping translation:', error);
       }
+      this.translationRecognizer = null;
     }
-  }
-
-  async getVercelToken() {
-    try {
-      return await AuthService.getToken();
-    } catch (error) {
-      console.error('Failed to get Vercel token:', error);
-      throw new Error('Authentication required to access the server');
-    }
+    this.isRecognizing = false;
   }
 }

@@ -1,18 +1,33 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
 
-export default defineConfig({
-  plugins: [react()],
-  optimizeDeps: {
-    include: ['microsoft-cognitiveservices-speech-sdk', 'react', 'react-dom']
-  },
-  build: {
-    commonjsOptions: {
-      include: [/microsoft-cognitiveservices-speech-sdk/, /node_modules/]
+// https://vitejs.dev/config/
+export default defineConfig(({ command, mode }) => {
+  const config = {
+    plugins: [react()],
+    optimizeDeps: {
+      include: ['microsoft-cognitiveservices-speech-sdk', 'react', 'react-dom']
+    },
+    build: {
+      commonjsOptions: {
+        include: [/microsoft-cognitiveservices-speech-sdk/, /node_modules/]
+      }
+    },
+    server: {
+      port: 38220,
+      host: true // Listen on all network interfaces
     }
-  },
-  server: {
-    port: 38220,
-    host: true // Listen on all network interfaces
+  };
+
+  // Add HTTPS configuration only in development mode
+  if (mode === 'development' && fs.existsSync('certs/key.pem') && fs.existsSync('certs/cert.pem')) {
+    config.server.https = {
+      key: fs.readFileSync('certs/key.pem'),
+      cert: fs.readFileSync('certs/cert.pem'),
+    };
   }
+
+  return config;
 });

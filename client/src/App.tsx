@@ -104,18 +104,10 @@ const App: React.FC = () => {
 
     if (!isRecording) {
       try {
-        // Get the current hostname and protocol
-        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-        const hostname = window.location.hostname;
-        const serverUrl = `${protocol}//${hostname}:38221`;
-
         await speechServiceRef.current.startTranslation({
           inputLanguage,
           outputLanguage,
-          secondOutputLanguage: secondOutputLanguage || undefined,
-          server: {
-            apiUrl: serverUrl
-          }
+          secondOutputLanguage: secondOutputLanguage || undefined
         });
         setIsRecording(true);
         setError(null);
