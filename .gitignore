@@ -19,6 +19,7 @@ yarn-error.log*
 # React
 /client/build
 /client/coverage
+/client/certs
 
 # IDE
 .vscode/
@@ -30,3 +31,4 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 .vercel
+.venv

@@ -1,35 +1,38 @@
 # Real-Time Speech Translator
 
-A modern web application for real-time speech translation using Azure Cognitive Services. This project is a migration from a Python GUI application to a full-stack TypeScript web application.
+A modern web application for real-time speech translation using Azure Cognitive Services. This application combines a React frontend with a Python backend to provide seamless real-time speech translation capabilities.
 
 ## Features
 
 - Real-time speech recognition and translation
-- Support for multiple languages
+- Support for multiple languages including English, Cantonese, Chinese (Simplified/Traditional), Japanese, and Korean
 - Bilingual output capability
-- Dark/light theme support
-- Responsive web interface
-- Type-safe implementation
+- Modern, responsive web interface with dark/light theme support
+- Semi-transparent, always-on-top window mode
+- Type-safe frontend implementation
 
 ## Tech Stack
 
 ### Frontend
-- React with TypeScript
-- Socket.io client for real-time communication
+- React 18 with TypeScript
 - Vite for build tooling
-- CSS for styling
+- TailwindCSS for styling
+- Framer Motion for animations
+- Microsoft Cognitive Services Speech SDK
+- Heroicons for UI icons
 
 ### Backend
-- Node.js with TypeScript
-- Express.js server
-- Socket.io for WebSocket communication
+- Python
 - Azure Cognitive Services Speech SDK
+- tkinter for legacy GUI support
+- python-dotenv for environment management
 
 ## Prerequisites
 
-1. Node.js (v14 or higher)
-2. Azure Cognitive Services Speech account
-3. npm or yarn package manager
+1. Python 3.x
+2. Node.js (v18 or higher recommended)
+3. Azure Cognitive Services Speech account
+4. npm or yarn package manager
 
 ## Setup
 
@@ -39,93 +42,85 @@ A modern web application for real-time speech translation using Azure Cognitive 
    cd RealTimeTranslation
    ```
 
-2. Install dependencies:
+2. Set up the Python environment:
    ```bash
-   # Install server dependencies
-   cd server
-   npm install
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-   # Install client dependencies
-   cd ../client
+3. Install frontend dependencies:
+   ```bash
+   cd client
    npm install
    ```
 
-3. Configure environment variables:
-   - Copy `.env.example` to `.env` in the server directory
+4. Configure environment variables:
+   - Copy `.env.example` to `.env` in the root directory
    - Add your Azure Speech Service credentials:
      ```
      SPEECH_KEY=your_azure_speech_key
      SPEECH_REGION=your_azure_region
-     PORT=3001 (optional)
      ```
 
 ## Development
 
-1. Start the server:
+1. Start the Python backend:
    ```bash
-   cd server
-   npm run dev
+   python translator_app.py
    ```
 
-2. Start the client:
+2. Start the frontend development server:
    ```bash
    cd client
    npm run dev
    ```
 
-3. Open `http://localhost:5173` in your browser
+3. Open `http://localhost:38220` in your browser
 
 ## Project Structure
 
 ```
 RealTimeTranslation/
 ├── client/                 # Frontend React application
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── types.ts       # TypeScript type definitions
-│   │   ├── App.tsx        # Main application component
-│   │   └── main.tsx       # Application entry point
+│   ├── src/               # Source code
 │   ├── public/            # Static assets
-│   └── package.json       # Frontend dependencies
+│   ├── package.json       # Frontend dependencies
+│   └── vite.config.ts     # Vite configuration
 │
-├── server/                # Backend Node.js server
-│   ├── src/
-│   │   └── index.ts      # Server implementation
-│   ├── .env.example      # Environment variables template
-│   └── package.json      # Backend dependencies
-│
+├── .venv/                 # Python virtual environment
+├── translator_app.py      # Python backend implementation
+├── requirements.txt       # Python dependencies
+├── settings.json          # Application settings
 └── README.md             # Project documentation
 ```
 
-## Key Improvements
+## Key Features
 
-1. **Type Safety**
-   - Full TypeScript implementation
-   - Proper type definitions for all components
-   - Type-safe Socket.io events
+1. **Speech Recognition**
+   - Real-time speech capture and recognition
+   - Support for multiple input languages
+   - Configurable speech recognition settings
 
-2. **Code Organization**
-   - SOLID principles implementation
-   - Clear separation of concerns
-   - Modular component structure
+2. **Translation**
+   - Simultaneous translation to multiple languages
+   - Support for bilingual output
+   - High-accuracy Azure-powered translation
 
-3. **Performance**
-   - Efficient state management
-   - Memory usage optimization
-   - Real-time updates optimization
+3. **User Interface**
+   - Modern, responsive design
+   - Dark/light theme support
+   - Semi-transparent window mode
+   - Always-on-top functionality
 
-4. **Error Handling**
-   - Comprehensive error catching
-   - User-friendly error messages
-   - Automatic error cleanup
-
-5. **Security**
-   - Environment variable validation
-   - CORS configuration
-   - API key protection
+4. **Performance**
+   - Efficient real-time processing
+   - Optimized memory usage
+   - Smooth user experience
 
 ## Available Languages
 
+The application supports translation between multiple languages, including:
 - English (US)
 - Cantonese
 - Chinese (Simplified)
@@ -133,7 +128,7 @@ RealTimeTranslation/
 - Japanese
 - Korean
 
-More languages can be added by updating the language options in the Settings component.
+Additional languages can be configured through the settings interface.
 
 ## Contributing
 
@@ -149,6 +144,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Original Python GUI implementation
 - Azure Cognitive Services team
 - React and TypeScript communities
+- Python community
