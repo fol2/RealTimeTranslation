@@ -112,8 +112,8 @@ export class AzureSpeechService {
       const audioConfig = speechsdk.AudioConfig.fromDefaultMicrophoneInput();
 
       // Set additional properties for better recognition
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2500");
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "1250");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "250");
       speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceResponse_RequestDetailedResultTrueFalse, "true");
       speechConfig.enableDictation();
       
@@ -202,22 +202,60 @@ export class AzureSpeechService {
     };
   }
 
-  async stopTranslation() {
+  async stopTranslation(): Promise<void> {
     if (this.translationRecognizer && this.isRecognizing) {
       console.log('Stopping translation...');
       try {
-        // If we have an interim result, finalize it
-        if (this.lastInterimResult) {
-          const { text, translations, language } = this.lastInterimResult;
-          this.onRecognized(text, translations, language);
-          this.lastInterimResult = null;
-        }
+        // Return a promise that resolves when we get the final result
+        return new Promise<void>((resolve, reject) => {
+          let finalResultReceived = false;
 
-        await this.translationRecognizer.stopContinuousRecognitionAsync();
-        this.isRecognizing = false;
+          // Store the original recognized callback
+          const originalRecognizedCallback = this.translationRecognizer!.recognized;
+          
+          // Override the recognized callback temporarily
+          this.translationRecognizer!.recognized = (_, e) => {
+            const result = e.result;
+            if (result.reason === speechsdk.ResultReason.TranslatedSpeech) {
+              // Extract translations
+              const translationsObj = result.translations as any;
+              const translations = Object.values(translationsObj.privMap.privValues) as string[];
+              
+              // Call onRecognized with the final result
+              this.onRecognized(result.text, translations, result.language);
+              
+              finalResultReceived = true;
+            }
+          };
+
+          // Stop recognition
+          this.translationRecognizer?.stopContinuousRecognitionAsync(
+            () => {
+              this.isRecognizing = false;
+              // Restore original callback
+              if (this.translationRecognizer) {
+                this.translationRecognizer.recognized = originalRecognizedCallback;
+              }
+              // If we got a final result or timed out, resolve
+              setTimeout(() => {
+                resolve();
+              }, finalResultReceived ? 0 : 1000);
+            },
+            (err) => {
+              console.error('Error stopping recognition:', err);
+              // Restore original callback
+              if (this.translationRecognizer) {
+                this.translationRecognizer.recognized = originalRecognizedCallback;
+              }
+              reject(err);
+            }
+          );
+        });
       } catch (error) {
         console.error('Error stopping translation:', error);
+        throw error;
       }
     }
+    return Promise.resolve();
   }
 }

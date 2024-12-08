@@ -3,7 +3,7 @@ import Header from './components/Header';
 import TranscriptBox from './components/TranscriptBox';
 import Settings from './components/Settings';
 import History from './components/History';
-import { TranscriptEntry, RecordingSession } from './types';
+import { TranscriptEntry, RecordingSession, TranscriptionRecord } from './types';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AzureSpeechService } from './services/azureSpeech';
 import { SettingsService } from './services/settings';
@@ -26,54 +26,61 @@ const App: React.FC = () => {
 
   const speechServiceRef = useRef<AzureSpeechService | null>(null);
 
-  useEffect(() => {
-    const saveTranscriptsToHistory = () => {
-      const currentSessionId = localStorage.getItem('currentSessionId');
-      if (!currentSessionId) return;
-
-      const storedHistory = localStorage.getItem('transcriptionHistory');
-      const history: RecordingSession[] = storedHistory ? JSON.parse(storedHistory) : [];
-      const existingSessionIndex = history.findIndex(
-        (session) => session.sessionId === currentSessionId
-      );
-
-      // Get only the finalized transcripts that haven't been saved yet
-      const unsavedTranscripts = transcripts.filter(t => t.isFinal && !t.isSaved);
-      if (unsavedTranscripts.length === 0) return;
-
-      // Map the transcripts to be saved to the required format
-      const transcriptsToSave = unsavedTranscripts.map(t => ({
+  // Move this function outside of useEffect so it can be accessed globally
+  const saveTranscriptsToHistory = () => {
+    const currentSessionId = localStorage.getItem('currentSessionId');
+    if (!currentSessionId) return;
+  
+    const storedHistory = localStorage.getItem('transcriptionHistory');
+    const history: RecordingSession[] = storedHistory ? JSON.parse(storedHistory) : [];
+    const existingSessionIndex = history.findIndex(
+      (session) => session.sessionId === currentSessionId
+    );
+  
+    // Get only the finalized transcripts
+    const finalTranscripts = transcripts.filter(t => t.isFinal);
+    if (finalTranscripts.length === 0) return;
+  
+    // Create a Set to track unique content
+    const existingContent = new Set([
+      ...history.flatMap(session => 
+        session.transcriptions.map(t => t.originalText)
+      )
+    ]);
+  
+    // Filter out duplicates before saving
+    const transcriptsToSave: TranscriptionRecord[] = finalTranscripts
+      .filter(t => !existingContent.has(t.original))
+      .map(t => ({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         timestamp: t.timestamp || new Date().toISOString(),
         originalText: t.original,
-        translatedText: t.translations[0] || '',
+        translatedTexts: t.translations,
         sourceLanguage: t.sourceLanguage || inputLanguage,
-        targetLanguage: outputLanguage
+        targetLanguages: [outputLanguage, secondOutputLanguage].filter((lang): lang is string => Boolean(lang))
       }));
+  
+    if (transcriptsToSave.length === 0) return;
+  
+    if (existingSessionIndex !== -1) {
+      // Update existing session
+      history[existingSessionIndex].transcriptions = [
+        ...history[existingSessionIndex].transcriptions,
+        ...transcriptsToSave
+      ];
+    } else {
+      // Create new session
+      history.unshift({
+        sessionId: currentSessionId,
+        timestamp: new Date().toISOString(),
+        transcriptions: transcriptsToSave
+      });
+    }
+  
+    localStorage.setItem('transcriptionHistory', JSON.stringify(history));
+  };
 
-      if (existingSessionIndex !== -1) {
-        // Update existing session
-        history[existingSessionIndex].transcriptions = [
-          ...history[existingSessionIndex].transcriptions,
-          ...transcriptsToSave
-        ];
-      } else {
-        // Create new session
-        history.unshift({
-          sessionId: currentSessionId,
-          timestamp: new Date().toISOString(),
-          transcriptions: transcriptsToSave
-        });
-      }
-
-      localStorage.setItem('transcriptionHistory', JSON.stringify(history));
-
-      // Mark transcripts as saved
-      setTranscripts(prev =>
-        prev.map(t => (t.isFinal && !t.isSaved ? { ...t, isSaved: true } : t))
-      );
-    };
-
+  useEffect(() => {
     // Save transcripts whenever a new finalized transcript is added
     const hasUnsavedFinalTranscript = transcripts.some(t => t.isFinal && !t.isSaved);
     if (hasUnsavedFinalTranscript) {
@@ -106,7 +113,6 @@ const App: React.FC = () => {
             original,
             translations: translations || [],
             isFinal: false,
-            isSaved: false,
             timestamp: new Date().toISOString(),
             sourceLanguage: detectedLanguage || inputLanguage,
             targetLanguage: outputLanguage
@@ -127,25 +133,32 @@ const App: React.FC = () => {
       (original, translations, detectedLanguage) => {
         setTranscripts(prev => {
           const updatedTranscripts = [...prev];
-          // Find any existing interim transcript
+          // Find any interim transcript
           const interimIndex = updatedTranscripts.findIndex(t => !t.isFinal);
           
-          const finalTranscript = {
-            original,
-            translations: translations || [],
-            isFinal: true,
-            isSaved: false,
-            timestamp: new Date().toISOString(),
-            sourceLanguage: detectedLanguage || inputLanguage,
-            targetLanguage: outputLanguage
-          };
-
+          // If this final result matches an interim one (by content or position)
           if (interimIndex !== -1) {
-            // Replace interim with final
-            updatedTranscripts[interimIndex] = finalTranscript;
-          } else {
-            // Add new final transcript
-            updatedTranscripts.push(finalTranscript);
+            // Replace the interim with the final version
+            updatedTranscripts[interimIndex] = {
+              original,
+              translations: translations || [],
+              isFinal: true,
+              isSaved: false,
+              timestamp: updatedTranscripts[interimIndex].timestamp, // Keep the original timestamp
+              sourceLanguage: detectedLanguage || inputLanguage,
+              targetLanguage: outputLanguage
+            };
+          } else if (!updatedTranscripts.some(t => t.original === original && t.isFinal)) {
+            // Only add if it's not a duplicate of an existing final transcript
+            updatedTranscripts.push({
+              original,
+              translations: translations || [],
+              isFinal: true,
+              isSaved: false,
+              timestamp: new Date().toISOString(),
+              sourceLanguage: detectedLanguage || inputLanguage,
+              targetLanguage: outputLanguage
+            });
           }
           
           return updatedTranscripts;
@@ -189,10 +202,16 @@ const App: React.FC = () => {
       }
     } else {
       try {
-        await speechServiceRef.current.stopTranslation();
-        setIsRecording(false);
+        setIsRecording(false); // Update UI immediately
         
-        // Clear current session after stopping
+        // Stop recording and wait for final recognition
+        await speechServiceRef.current.stopTranslation();
+        
+        // Wait a brief moment for state to update with final recognition
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Now save to history and clean up
+        saveTranscriptsToHistory();
         localStorage.removeItem('currentSessionId');
       } catch (err) {
         setError('Failed to stop recording.');

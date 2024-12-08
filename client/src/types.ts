@@ -14,9 +14,9 @@ export interface TranscriptionRecord {
   id: string;
   timestamp: string;
   originalText: string;
-  translatedText: string;
+  translatedTexts: string[]; // Change to an array
   sourceLanguage: string;
-  targetLanguage: string;
+  targetLanguages: string[]; // Change to an array
 }
 
 // Recording session

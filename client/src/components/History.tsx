@@ -154,12 +154,14 @@ const History: React.FC = () => {
                           </h3>
                           <p className="mt-1 text-gray-800 dark:text-gray-200">{record.originalText}</p>
                         </div>
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Translation ({record.targetLanguage})
-                          </h3>
-                          <p className="mt-1 text-gray-800 dark:text-gray-200">{record.translatedText}</p>
-                        </div>
+                        {record.translatedTexts.map((text, index) => (
+                          <div key={index}>
+                            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                              Translation ({record.targetLanguages[index]})
+                            </h3>
+                            <p className="mt-1 text-gray-800 dark:text-gray-200">{text}</p>
+                          </div>
+                        ))}
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {formatDate(record.timestamp)}
                         </div>
