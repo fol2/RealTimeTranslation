@@ -1,110 +1,154 @@
 # Real-Time Speech Translator
 
-A full-stack web application for real-time speech translation using Azure Cognitive Services. This application supports multiple languages and provides a modern, responsive interface with both light and dark themes.
+A modern web application for real-time speech translation using Azure Cognitive Services. This project is a migration from a Python GUI application to a full-stack TypeScript web application.
 
 ## Features
 
 - Real-time speech recognition and translation
-- Support for multiple target languages
-- Dark/Light theme toggle
-- Persistent settings using localStorage
-- Real-time updates using Socket.io
-- Modern, responsive UI
+- Support for multiple languages
+- Bilingual output capability
+- Dark/light theme support
+- Responsive web interface
+- Type-safe implementation
+
+## Tech Stack
+
+### Frontend
+- React with TypeScript
+- Socket.io client for real-time communication
+- Vite for build tooling
+- CSS for styling
+
+### Backend
+- Node.js with TypeScript
+- Express.js server
+- Socket.io for WebSocket communication
+- Azure Cognitive Services Speech SDK
 
 ## Prerequisites
 
-- Node.js (v14 or later)
-- npm (v6 or later)
-- Azure Speech Service subscription
-  - Speech service key
-  - Region identifier
+1. Node.js (v14 or higher)
+2. Azure Cognitive Services Speech account
+3. npm or yarn package manager
+
+## Setup
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd RealTimeTranslation
+   ```
+
+2. Install dependencies:
+   ```bash
+   # Install server dependencies
+   cd server
+   npm install
+
+   # Install client dependencies
+   cd ../client
+   npm install
+   ```
+
+3. Configure environment variables:
+   - Copy `.env.example` to `.env` in the server directory
+   - Add your Azure Speech Service credentials:
+     ```
+     SPEECH_KEY=your_azure_speech_key
+     SPEECH_REGION=your_azure_region
+     PORT=3001 (optional)
+     ```
+
+## Development
+
+1. Start the server:
+   ```bash
+   cd server
+   npm run dev
+   ```
+
+2. Start the client:
+   ```bash
+   cd client
+   npm run dev
+   ```
+
+3. Open `http://localhost:5173` in your browser
 
 ## Project Structure
 
 ```
 RealTimeTranslation/
-├── client/               # React frontend
+├── client/                 # Frontend React application
 │   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── App.jsx      # Main application
-│   │   └── App.css      # Styles
-│   └── package.json
-├── server/              # Node.js backend
-│   ├── index.js         # Server implementation
-│   └── package.json
-└── README.md
+│   │   ├── components/    # React components
+│   │   ├── types.ts       # TypeScript type definitions
+│   │   ├── App.tsx        # Main application component
+│   │   └── main.tsx       # Application entry point
+│   ├── public/            # Static assets
+│   └── package.json       # Frontend dependencies
+│
+├── server/                # Backend Node.js server
+│   ├── src/
+│   │   └── index.ts      # Server implementation
+│   ├── .env.example      # Environment variables template
+│   └── package.json      # Backend dependencies
+│
+└── README.md             # Project documentation
 ```
 
-## Setup
+## Key Improvements
 
-1. Clone the repository and switch to the feature branch:
-   ```bash
-   git checkout feature/react-node-web-version
-   ```
+1. **Type Safety**
+   - Full TypeScript implementation
+   - Proper type definitions for all components
+   - Type-safe Socket.io events
 
-2. Install backend dependencies:
-   ```bash
-   cd server
-   npm install
-   ```
+2. **Code Organization**
+   - SOLID principles implementation
+   - Clear separation of concerns
+   - Modular component structure
 
-3. Configure environment variables:
-   - Copy `.env.example` to `.env`
-   - Update with your Azure Speech Service credentials:
-     ```
-     SPEECH_KEY=your_azure_speech_key_here
-     SPEECH_REGION=your_azure_region_here
-     ```
+3. **Performance**
+   - Efficient state management
+   - Memory usage optimization
+   - Real-time updates optimization
 
-4. Install frontend dependencies:
-   ```bash
-   cd ../client
-   npm install
-   ```
+4. **Error Handling**
+   - Comprehensive error catching
+   - User-friendly error messages
+   - Automatic error cleanup
 
-## Running the Application
+5. **Security**
+   - Environment variable validation
+   - CORS configuration
+   - API key protection
 
-1. Start the backend server:
-   ```bash
-   cd server
-   node index.js
-   ```
-   The server will run on http://localhost:3001
+## Available Languages
 
-2. In a new terminal, start the frontend:
-   ```bash
-   cd client
-   npm run dev
-   ```
-   The frontend will be available at http://localhost:5173
+- English (US)
+- Cantonese
+- Chinese (Simplified)
+- Chinese (Traditional)
+- Japanese
+- Korean
 
-## Usage
-
-1. Open the application in your browser
-2. Configure your preferred:
-   - Input language
-   - Primary output language
-   - Secondary output language (optional)
-   - Theme (light/dark)
-3. Click "Start Recording" to begin translation
-4. Speak into your microphone
-5. View real-time transcription and translation results
-6. Click "Stop" when finished
-
-## Development
-
-- Frontend code is in the `client` directory
-- Backend code is in the `server` directory
-- Both use modern ES6+ JavaScript/React
-- Real-time communication is handled via Socket.io
-- Styling uses CSS variables for theming
+More languages can be added by updating the language options in the Settings component.
 
 ## Contributing
 
-1. Create a new branch for your feature
-2. Make your changes
-3. Submit a pull request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Original Python GUI implementation
+- Azure Cognitive Services team
+- React and TypeScript communities
