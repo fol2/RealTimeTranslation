@@ -21,6 +21,7 @@ export const config = {
 
   // Supported languages configuration
   languages: [
+    { code: 'auto', name: 'Auto Detect', nativeName: 'Auto Detect' },
     { code: '', name: 'None', nativeName: 'None' },
     { code: 'en-US', name: 'English (US)', nativeName: 'English (US)' },
     { code: 'en-GB', name: 'English (UK)', nativeName: 'English (UK)' },

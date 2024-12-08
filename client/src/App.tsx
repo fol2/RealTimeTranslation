@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import Header from './components/Header';
 import TranscriptBox from './components/TranscriptBox';
 import Settings from './components/Settings';
-import { TranscriptEntry } from './types';
+import History from './components/History';
+import { TranscriptEntry, RecordingSession } from './types';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AzureSpeechService } from './services/azureSpeech';
 import { SettingsService } from './services/settings';
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'transcription' | 'history'>('transcription');
   
   // Get settings service instance
   const settingsService = SettingsService.getInstance();
@@ -25,64 +27,128 @@ const App: React.FC = () => {
   const speechServiceRef = useRef<AzureSpeechService | null>(null);
 
   useEffect(() => {
+    const saveTranscriptsToHistory = () => {
+      const currentSessionId = localStorage.getItem('currentSessionId');
+      if (!currentSessionId) return;
+
+      const storedHistory = localStorage.getItem('transcriptionHistory');
+      const history: RecordingSession[] = storedHistory ? JSON.parse(storedHistory) : [];
+      const existingSessionIndex = history.findIndex(
+        (session) => session.sessionId === currentSessionId
+      );
+
+      // Get only the finalized transcripts that haven't been saved yet
+      const unsavedTranscripts = transcripts.filter(t => t.isFinal && !t.isSaved);
+      if (unsavedTranscripts.length === 0) return;
+
+      // Map the transcripts to be saved to the required format
+      const transcriptsToSave = unsavedTranscripts.map(t => ({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        timestamp: t.timestamp || new Date().toISOString(),
+        originalText: t.original,
+        translatedText: t.translations[0] || '',
+        sourceLanguage: t.sourceLanguage || inputLanguage,
+        targetLanguage: outputLanguage
+      }));
+
+      if (existingSessionIndex !== -1) {
+        // Update existing session
+        history[existingSessionIndex].transcriptions = [
+          ...history[existingSessionIndex].transcriptions,
+          ...transcriptsToSave
+        ];
+      } else {
+        // Create new session
+        history.unshift({
+          sessionId: currentSessionId,
+          timestamp: new Date().toISOString(),
+          transcriptions: transcriptsToSave
+        });
+      }
+
+      localStorage.setItem('transcriptionHistory', JSON.stringify(history));
+
+      // Mark transcripts as saved
+      setTranscripts(prev =>
+        prev.map(t => (t.isFinal && !t.isSaved ? { ...t, isSaved: true } : t))
+      );
+    };
+
+    // Save transcripts whenever a new finalized transcript is added
+    const hasUnsavedFinalTranscript = transcripts.some(t => t.isFinal && !t.isSaved);
+    if (hasUnsavedFinalTranscript) {
+      saveTranscriptsToHistory();
+    }
+
+    // Save when recording stops
+    if (!isRecording && transcripts.length > 0) {
+      saveTranscriptsToHistory();
+    }
+
+    window.addEventListener('beforeunload', saveTranscriptsToHistory);
+
+    return () => {
+      window.removeEventListener('beforeunload', saveTranscriptsToHistory);
+    };
+  }, [isRecording, transcripts, inputLanguage, outputLanguage]);
+
+  useEffect(() => {
     // Initialize speech service
     speechServiceRef.current = new AzureSpeechService(
       // Interim results
-      (original, translations) => {
-        console.log('Interim result:', { original, translations });
+      (original, translations, detectedLanguage) => {
         setTranscripts(prev => {
-          // Find the last non-final transcript if it exists
-          const lastTranscript = prev[prev.length - 1];
-          if (lastTranscript && !lastTranscript.isFinal) {
-            // Update the last transcript
-            const updatedTranscript = { 
-              original, 
-              translations: translations || [], 
-              isFinal: false 
-            };
-            console.log('Updating interim transcript:', updatedTranscript);
-            return [
-              ...prev.slice(0, -1),
-              updatedTranscript
-            ];
-          }
-          // Add a new transcript
-          const newTranscript = { 
-            original, 
-            translations: translations || [], 
-            isFinal: false 
+          const updatedTranscripts = [...prev];
+          // Find any existing interim transcript
+          const interimIndex = updatedTranscripts.findIndex(t => !t.isFinal);
+          
+          const newTranscript = {
+            original,
+            translations: translations || [],
+            isFinal: false,
+            isSaved: false,
+            timestamp: new Date().toISOString(),
+            sourceLanguage: detectedLanguage || inputLanguage,
+            targetLanguage: outputLanguage
           };
-          console.log('Adding new interim transcript:', newTranscript);
-          return [...prev, newTranscript];
+
+          if (interimIndex !== -1) {
+            // Update existing interim transcript
+            updatedTranscripts[interimIndex] = newTranscript;
+          } else {
+            // Add new interim transcript
+            updatedTranscripts.push(newTranscript);
+          }
+          
+          return updatedTranscripts;
         });
       },
       // Final results
-      (original, translations) => {
-        console.log('Final result:', { original, translations });
+      (original, translations, detectedLanguage) => {
         setTranscripts(prev => {
-          // Find the last transcript
-          const lastTranscript = prev[prev.length - 1];
-          if (lastTranscript && !lastTranscript.isFinal) {
-            // Update the last transcript and mark as final
-            const updatedTranscript = { 
-              original, 
-              translations: translations || [], 
-              isFinal: true 
-            };
-            console.log('Updating final transcript:', updatedTranscript);
-            return [
-              ...prev.slice(0, -1),
-              updatedTranscript
-            ];
-          }
-          // Add a new final transcript
-          const newTranscript = { 
-            original, 
-            translations: translations || [], 
-            isFinal: true 
+          const updatedTranscripts = [...prev];
+          // Find any existing interim transcript
+          const interimIndex = updatedTranscripts.findIndex(t => !t.isFinal);
+          
+          const finalTranscript = {
+            original,
+            translations: translations || [],
+            isFinal: true,
+            isSaved: false,
+            timestamp: new Date().toISOString(),
+            sourceLanguage: detectedLanguage || inputLanguage,
+            targetLanguage: outputLanguage
           };
-          console.log('Adding new final transcript:', newTranscript);
-          return [...prev, newTranscript];
+
+          if (interimIndex !== -1) {
+            // Replace interim with final
+            updatedTranscripts[interimIndex] = finalTranscript;
+          } else {
+            // Add new final transcript
+            updatedTranscripts.push(finalTranscript);
+          }
+          
+          return updatedTranscripts;
         });
       },
       // Error handling
@@ -97,33 +163,46 @@ const App: React.FC = () => {
         speechServiceRef.current.stopTranslation();
       }
     };
-  }, []);
+  }, [inputLanguage, outputLanguage]);
 
-  const toggleRecording = async () => {
+  const handleToggleRecording = async () => {
     if (!speechServiceRef.current) return;
 
     if (!isRecording) {
       try {
+        // Create new recording session before starting
+        const sessionId = Date.now().toString();
+        localStorage.setItem('currentSessionId', sessionId);
+        
         await speechServiceRef.current.startTranslation({
           inputLanguage,
           outputLanguage,
-          secondOutputLanguage: secondOutputLanguage || undefined
+          secondOutputLanguage
         });
         setIsRecording(true);
         setError(null);
-      } catch (error) {
-        console.error('Translation error:', error);
-        setError(error instanceof Error ? error.message : 'Failed to start translation');
+      } catch (err) {
+        setError('Failed to start recording. Please check your microphone access.');
+        console.error('Error starting recording:', err);
+        // Clean up session ID if start fails
+        localStorage.removeItem('currentSessionId');
       }
     } else {
-      await speechServiceRef.current.stopTranslation();
-      setIsRecording(false);
+      try {
+        await speechServiceRef.current.stopTranslation();
+        setIsRecording(false);
+        
+        // Clear current session after stopping
+        localStorage.removeItem('currentSessionId');
+      } catch (err) {
+        setError('Failed to stop recording.');
+        console.error('Error stopping recording:', err);
+      }
     }
   };
 
-  const clearHistory = () => {
+  const handleClearTranscripts = () => {
     setTranscripts([]);
-    setError(null);
   };
 
   const handleSettingsUpdate = (settings: { 
@@ -141,41 +220,52 @@ const App: React.FC = () => {
     
     // Stop recording if it's active
     if (isRecording) {
-      toggleRecording();
+      handleToggleRecording();
     }
   };
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 p-4 sm:p-8 transition-colors duration-300">
-        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden transition-colors duration-300">
-          <Header 
-            isRecording={isRecording} 
-            onToggleRecording={toggleRecording}
-            onClearHistory={clearHistory}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-          />
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+        <Header
+          isRecording={isRecording}
+          onToggleRecording={handleToggleRecording}
+          onClearHistory={handleClearTranscripts}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        
+        <main className="container mx-auto px-4 py-8">
           {error && (
-            <div className="px-6 py-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-100">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
               {error}
             </div>
           )}
-          <TranscriptBox 
-            transcripts={transcripts} 
-            outputLanguage={outputLanguage}
-            secondOutputLanguage={secondOutputLanguage}
+          
+          {activeTab === 'transcription' ? (
+            <TranscriptBox
+              transcripts={transcripts}
+              outputLanguage={outputLanguage}
+              secondOutputLanguage={secondOutputLanguage}
+            />
+          ) : (
+            <History />
+          )}
+        </main>
+
+        {isSettingsOpen && (
+          <Settings
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            initialSettings={{
+              inputLanguage,
+              outputLanguage,
+              secondOutputLanguage
+            }}
+            onUpdate={handleSettingsUpdate}
           />
-        </div>
-        <Settings 
-          isOpen={isSettingsOpen} 
-          onClose={() => setIsSettingsOpen(false)}
-          initialSettings={{
-            inputLanguage,
-            outputLanguage,
-            secondOutputLanguage
-          }}
-          onUpdate={handleSettingsUpdate}
-        />
+        )}
       </div>
     </ThemeProvider>
   );

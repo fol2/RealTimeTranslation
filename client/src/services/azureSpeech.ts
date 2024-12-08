@@ -9,10 +9,15 @@ interface TranslationConfig {
 export class AzureSpeechService {
   private translationRecognizer: speechsdk.TranslationRecognizer | null = null;
   private isRecognizing: boolean = false;
+  private lastInterimResult: {
+    text: string;
+    translations: string[];
+    language?: string;
+  } | null = null;
 
   constructor(
-    private onRecognizing: (original: string, translations: string[]) => void,
-    private onRecognized: (original: string, translations: string[]) => void,
+    private onRecognizing: (original: string, translations: string[], detectedLanguage?: string) => void,
+    private onRecognized: (original: string, translations: string[], detectedLanguage?: string) => void,
     private onError: (error: string) => void
   ) {}
 
@@ -58,7 +63,43 @@ export class AzureSpeechService {
         second: config.secondOutputLanguage
       });
 
-      speechConfig.speechRecognitionLanguage = config.inputLanguage;
+      // For auto-detect, we need to:
+      // 1. Set a default recognition language (required by Azure)
+      // 2. Enable auto language detection
+      if (config.inputLanguage === 'auto') {
+        // Set a default language (English) as required by Azure
+        speechConfig.speechRecognitionLanguage = 'en-US';
+        
+        // Enable auto language detection
+        speechConfig.setProperty(
+          speechsdk.PropertyId.SpeechServiceConnection_LanguageIdMode,
+          'Continuous'
+        );
+        
+        // Add top 10 most common languages for detection
+        // Note: Azure Speech Service only supports 10 languages in auto-detect mode
+        const autoDetectSourceLanguages = [
+          'en-US',  // English
+          'zh-CN',  // Chinese (Simplified)
+          'es-ES',  // Spanish
+          'hi-IN',  // Hindi
+          'ar-SA',  // Arabic
+          'fr-FR',  // French
+          'ru-RU',  // Russian
+          'pt-BR',  // Portuguese
+          'ja-JP',  // Japanese
+          'de-DE'   // German
+        ].join(',');
+        
+        console.log('Setting auto-detect languages:', autoDetectSourceLanguages);
+        
+        speechConfig.setProperty(
+          speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguages,
+          autoDetectSourceLanguages
+        );
+      } else {
+        speechConfig.speechRecognitionLanguage = config.inputLanguage;
+      }
       
       // Add target languages
       speechConfig.addTargetLanguage(config.outputLanguage);
@@ -71,10 +112,11 @@ export class AzureSpeechService {
       const audioConfig = speechsdk.AudioConfig.fromDefaultMicrophoneInput();
 
       // Set additional properties for better recognition
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "5000");
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1000");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2500");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
       speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceResponse_RequestDetailedResultTrueFalse, "true");
-
+      speechConfig.enableDictation();
+      
       // Create recognizer
       console.log('Creating translation recognizer...');
       this.translationRecognizer = new speechsdk.TranslationRecognizer(
@@ -83,101 +125,99 @@ export class AzureSpeechService {
       );
 
       // Set up event handlers with better error handling
-      this.translationRecognizer.recognizing = (_, event) => {
-        const result = event.result;
-        if (result.reason === speechsdk.ResultReason.TranslatingSpeech) {
-          console.log('Recognizing speech...', {
-            text: result.text,
-            rawTranslations: result.translations,
-          });
-          
-          // Extract translations properly from the PropertyCollection
-          const translationsObj = result.translations as any;
-          const translations = Object.values(translationsObj.privMap.privValues) as string[];
-          
-          console.log('Extracted interim translations:', translations);
-          this.onRecognizing(result.text, translations);
-        } else {
-          console.log('Recognizing event with reason:', result.reason);
-        }
-      };
+      this.setupRecognizer(this.translationRecognizer);
 
-      this.translationRecognizer.recognized = (_, event) => {
-        const result = event.result;
-        if (result.reason === speechsdk.ResultReason.TranslatedSpeech) {
-          console.log('Recognized speech:', {
-            text: result.text,
-            rawTranslations: result.translations,
-          });
-          
-          // Extract translations properly from the PropertyCollection
-          const translationsObj = result.translations as any;
-          const translations = Object.values(translationsObj.privMap.privValues) as string[];
-          
-          console.log('Extracted final translations:', translations);
-          this.onRecognized(result.text, translations);
-        } else if (result.reason === speechsdk.ResultReason.NoMatch) {
-          const noMatchDetail = speechsdk.NoMatchDetails.fromResult(result);
-          if (noMatchDetail.reason === speechsdk.NoMatchReason.InitialSilenceTimeout ||
-              noMatchDetail.reason === speechsdk.NoMatchReason.InitialBabbleTimeout ||
-              noMatchDetail.reason === speechsdk.NoMatchReason.NotRecognized) {
-            console.debug('Silence detected, continuing to listen...');
-          } else {
-            console.warn('No speech could be recognized:', noMatchDetail.reason);
-            this.onError(`Speech recognition error: ${noMatchDetail.reason}`);
-          }
-        } else {
-          console.log('Recognition event with reason:', result.reason);
-        }
-      };
-
-      this.translationRecognizer.canceled = async (_, event) => {
-        console.error('Speech recognition canceled:', {
-          reason: event.reason,
-          errorDetails: event.errorDetails,
-          errorCode: event.errorCode
-        });
-        
-        if (event.reason === speechsdk.CancellationReason.Error) {
-          const errorMessage = `Error: ${event.errorDetails} (Code: ${event.errorCode})`;
-          console.error(errorMessage);
-          this.onError(errorMessage);
-        }
-        await this.stopTranslation();
-      };
-
-      // Start continuous recognition with error handling
+      // Start continuous recognition
       console.log('Starting continuous recognition...');
-      try {
-        await this.translationRecognizer.startContinuousRecognitionAsync();
-        this.isRecognizing = true;
-        console.log('Translation started successfully');
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error('Error during speech recognition:', errorMessage);
-        this.onError(errorMessage);
-        await this.stopTranslation();
-      }
-
+      await this.translationRecognizer.startContinuousRecognitionAsync();
+      console.log('Translation started successfully');
+      this.isRecognizing = true;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      console.error('Error during speech recognition:', errorMessage);
-      this.onError(errorMessage);
-      await this.stopTranslation();
+      console.error('Error during speech recognition:', error);
+      this.onError(error instanceof Error ? error.message : 'Unknown error occurred');
+      throw error;
     }
   }
 
+  private setupRecognizer(recognizer: speechsdk.TranslationRecognizer) {
+    recognizer.recognizing = (_, event) => {
+      const result = event.result;
+      if (result.reason === speechsdk.ResultReason.TranslatingSpeech) {
+        const detectedLanguage = result.language;
+        console.log('Recognizing speech...', {
+          text: result.text,
+          rawTranslations: result.translations,
+          detectedLanguage
+        });
+        
+        // Extract translations properly from the PropertyCollection
+        const translationsObj = result.translations as any;
+        const translations = Object.values(translationsObj.privMap.privValues) as string[];
+        
+        // Store the interim result
+        this.lastInterimResult = {
+          text: result.text,
+          translations,
+          language: detectedLanguage
+        };
+        
+        console.log('Extracted interim translations:', translations);
+        this.onRecognizing(result.text, translations, detectedLanguage);
+      } else {
+        console.log('Recognizing event with reason:', result.reason);
+      }
+    };
+
+    recognizer.recognized = (_, event) => {
+      const result = event.result;
+      if (result.reason === speechsdk.ResultReason.TranslatedSpeech) {
+        const detectedLanguage = result.language;
+        console.log('Recognized speech:', {
+          text: result.text,
+          rawTranslations: result.translations,
+          detectedLanguage
+        });
+        
+        // Extract translations properly from the PropertyCollection
+        const translationsObj = result.translations as any;
+        const translations = Object.values(translationsObj.privMap.privValues) as string[];
+        
+        // Clear the interim result if this is the final version
+        if (this.lastInterimResult?.text === result.text) {
+          this.lastInterimResult = null;
+        }
+        
+        console.log('Extracted final translations:', translations);
+        this.onRecognized(result.text, translations, detectedLanguage);
+      } else {
+        console.log('Recognition event with reason:', result.reason);
+      }
+    };
+
+    recognizer.canceled = (_, event) => {
+      if (event.reason === speechsdk.CancellationReason.Error) {
+        console.error('Speech recognition canceled:', event);
+        this.onError(`Error: ${event.errorDetails} (Code: ${event.errorCode})`);
+      }
+    };
+  }
+
   async stopTranslation() {
-    console.log('Stopping translation...');
-    if (this.translationRecognizer) {
+    if (this.translationRecognizer && this.isRecognizing) {
+      console.log('Stopping translation...');
       try {
+        // If we have an interim result, finalize it
+        if (this.lastInterimResult) {
+          const { text, translations, language } = this.lastInterimResult;
+          this.onRecognized(text, translations, language);
+          this.lastInterimResult = null;
+        }
+
         await this.translationRecognizer.stopContinuousRecognitionAsync();
-        this.translationRecognizer.close();
+        this.isRecognizing = false;
       } catch (error) {
         console.error('Error stopping translation:', error);
       }
-      this.translationRecognizer = null;
     }
-    this.isRecognizing = false;
   }
 }
