@@ -1,5 +1,5 @@
 import * as speechsdk from 'microsoft-cognitiveservices-speech-sdk';
-import config from '../config';
+import { AuthService } from './auth';
 
 interface TranslationConfig {
   inputLanguage: string;
@@ -41,12 +41,14 @@ export class AzureSpeechService {
       console.log('Starting translation with config:', config);
 
       // Get token from server
+      const token = await this.getVercelToken();
       const response = await fetch(`${config.server.apiUrl}/api/speech-token`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Origin': window.location.origin
+          'Origin': window.location.origin,
+          'Authorization': `Bearer ${token}`
         },
         mode: 'cors'
       });
@@ -143,10 +145,9 @@ export class AzureSpeechService {
           this.onRecognized(result.text, translations);
         } else if (result.reason === speechsdk.ResultReason.NoMatch) {
           const noMatchDetail = speechsdk.NoMatchDetails.fromResult(result);
-          // Only log silence timeouts at debug level, don't show error
           if (noMatchDetail.reason === speechsdk.NoMatchReason.InitialSilenceTimeout ||
-              noMatchDetail.reason === speechsdk.NoMatchReason.EndSilenceTimeout ||
-              noMatchDetail.reason === 0) { // 0 is often returned for brief silence
+              noMatchDetail.reason === speechsdk.NoMatchReason.InitialBabbleTimeout ||
+              noMatchDetail.reason === speechsdk.NoMatchReason.NotRecognized) {
             console.debug('Silence detected, continuing to listen...');
           } else {
             // Only show error for actual recognition problems
@@ -170,7 +171,8 @@ export class AzureSpeechService {
           console.error(errorMessage);
           
           // If it's an authorization error, try to restart with a new token
-          if (event.errorCode === 4 || event.errorCode === 401) {
+          if (event.errorCode === speechsdk.CancellationErrorCode.AuthenticationFailure || 
+              event.errorCode === speechsdk.CancellationErrorCode.Forbidden) {
             console.log('Authorization error, stopping current session...');
             await this.stopTranslation();
             this.onError('Session expired. Please try again.');
@@ -188,16 +190,16 @@ export class AzureSpeechService {
         this.isRecognizing = true;
         console.log('Translation started successfully');
       } catch (error) {
-        const errorMessage = `Failed to start continuous recognition: ${error.message}`;
-        console.error(errorMessage);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        console.error('Error during speech recognition:', errorMessage);
         this.onError(errorMessage);
         await this.stopTranslation();
       }
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Failed to start translation:', errorMessage);
-      this.onError(`Failed to start translation: ${errorMessage}`);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('Error during speech recognition:', errorMessage);
+      this.onError(errorMessage);
       await this.stopTranslation();
     }
   }
@@ -214,10 +216,19 @@ export class AzureSpeechService {
         this.isRecognizing = false;
         console.log('Translation stopped successfully');
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error stopping translation:', errorMessage);
-        this.onError(`Error stopping translation: ${errorMessage}`);
+        this.onError(errorMessage);
       }
+    }
+  }
+
+  async getVercelToken() {
+    try {
+      return await AuthService.getToken();
+    } catch (error) {
+      console.error('Failed to get Vercel token:', error);
+      throw new Error('Authentication required to access the server');
     }
   }
 }

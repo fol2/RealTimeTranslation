@@ -6,7 +6,6 @@ import { TranscriptEntry } from './types';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AzureSpeechService } from './services/azureSpeech';
 import { SettingsService } from './services/settings';
-import { config } from './config';
 
 const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -122,7 +121,7 @@ const App: React.FC = () => {
         setError(null);
       } catch (error) {
         console.error('Translation error:', error);
-        setError(typeof error === 'string' ? error : error.message || 'Failed to start translation');
+        setError(error instanceof Error ? error.message : 'Failed to start translation');
       }
     } else {
       await speechServiceRef.current.stopTranslation();

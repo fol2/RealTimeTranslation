@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 import { motion, AnimatePresence } from 'framer-motion';
-import config, { LanguageCode } from '../config';
+import config from '../config';
 
 interface SettingsProps {
   isOpen: boolean;

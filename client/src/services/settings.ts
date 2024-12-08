@@ -1,4 +1,4 @@
-import config, { LanguageCode } from '../config';
+import config from '../config';
 
 export interface UserSettings {
   inputLanguage: string;

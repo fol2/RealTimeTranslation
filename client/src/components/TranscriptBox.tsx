@@ -27,7 +27,7 @@ const TranscriptBox: React.FC<TranscriptBoxProps> = ({
     }
   }, [transcripts]);
 
-  const languages = [outputLanguage, secondOutputLanguage].filter(Boolean);
+  const languages = [outputLanguage, secondOutputLanguage].filter((lang): lang is string => Boolean(lang));
 
   return (
     <div ref={scrollRef} className="p-4 sm:p-6 h-[calc(100vh-12rem)] overflow-y-auto bg-white dark:bg-gray-800 transition-colors duration-300">

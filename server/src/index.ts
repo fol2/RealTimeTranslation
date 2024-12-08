@@ -1,28 +1,20 @@
 import express from 'express';
-import { createServer } from 'https';
 import { Server } from 'socket.io';
 import * as speechsdk from 'microsoft-cognitiveservices-speech-sdk';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import fs from 'fs';
-import path from 'path';
+import { createServer } from 'http';
 
 // Load environment variables
 dotenv.config();
 
 // Validate environment variables
-const REQUIRED_ENV_VARS = ['SPEECH_KEY', 'SPEECH_REGION', 'PORT', 'CORS_ORIGIN'] as const;
+const REQUIRED_ENV_VARS = ['SPEECH_KEY', 'SPEECH_REGION', 'CORS_ORIGIN'] as const;
 REQUIRED_ENV_VARS.forEach(varName => {
   if (!process.env[varName]) {
     throw new Error(`Missing required environment variable: ${varName}`);
   }
 });
-
-// SSL configuration
-const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, '../../certs/key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, '../../certs/cert.pem')),
-};
 
 // Types
 interface TranslationConfig {
@@ -32,25 +24,19 @@ interface TranslationConfig {
 }
 
 // Constants
-const PORT = process.env.PORT;
 const CORS_ORIGIN = process.env.CORS_ORIGIN;
 
-// Create Express app and Socket.io server
+// Initialize Express app
 const app = express();
-const httpServer = createServer(sslOptions, app);
 
-// Allow both HTTP and HTTPS origins
-const allowedOrigins = [
-  'https://192.168.50.177:38220',
-  'http://192.168.50.177:38220',
-  'https://localhost:38220',
-  'http://localhost:38220'
-];
+// Create HTTP server
+const server = createServer(app);
 
-const io = new Server(httpServer, {
+// Initialize Socket.IO
+const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || origin === CORS_ORIGIN || CORS_ORIGIN === '*') {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -61,13 +47,12 @@ const io = new Server(httpServer, {
     allowedHeaders: ['Content-Type', 'Accept', 'Origin']
   },
   pingTimeout: 60000,
-  pingInterval: 25000
 });
 
-// Middleware
+// Configure Express middleware
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || origin === CORS_ORIGIN || CORS_ORIGIN === '*') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -85,21 +70,38 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(process.cwd() + '/../client', {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.js')) {
-      res.set("Content-Type", "application/javascript");
-    } else if (path.endsWith('.css')) {
-      res.set("Content-Type", "text/css");
-    } else if (path.endsWith('.html')) {
-      res.set("Content-Type", "text/html");
-    }
+// Middleware to verify Vercel token
+const verifyToken = async (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
   }
-}));
+
+  try {
+    // Verify token with Vercel
+    const response = await fetch('https://api.vercel.com/v2/user', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return res.status(500).json({ error: 'Token verification failed' });
+  }
+};
+
+// Apply token verification to API routes
+app.use('/api/*', verifyToken);
 
 // Basic route handler
 app.get('/', (req, res) => {
-  res.sendFile(process.cwd() + '/../client/index.html');
+  res.json({ status: 'Server is running' });
 });
 
 // API endpoint for Azure Speech token
@@ -278,9 +280,10 @@ io.on('connection', (socket) => {
   socket.on('stopTranslation', cleanup);
 });
 
-// Start server
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Start the server
+const port = process.env.PORT || 3000;
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
 
 // Basic health check endpoint
