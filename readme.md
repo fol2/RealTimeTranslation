@@ -1,61 +1,100 @@
 # Real-Time Speech Translator
 
-A modern web application for real-time speech translation using Azure Cognitive Services. This application combines a React frontend with a Python backend to provide seamless real-time speech translation capabilities.
+This repository contains two independent applications for real-time speech translation using Azure Cognitive Services:
+
+1. A standalone Python desktop application (`translator_app.py`)
+2. A modern web application (in the `client` directory) with React frontend
+
+Both applications provide real-time speech translation capabilities but are completely independent of each other. The Python app was the initial implementation, while the web application is a more feature-rich, full-stack solution developed later.
 
 ## Features
 
+### Common Features
 - Real-time speech recognition and translation
-- Support for multiple languages including English, Cantonese, Chinese (Simplified/Traditional), Japanese, and Korean
+- Support for multiple languages
 - Bilingual output capability
-- Modern, responsive web interface with dark/light theme support
+- Lightweight and easy to use
+
+### Python Desktop App (`translator_app.py`)
+- Simple desktop interface using tkinter
 - Semi-transparent, always-on-top window mode
+- Easy to run locally
+
+### Web Application (`client`)
+- Modern, responsive web interface
+- Dark/light theme support
 - Type-safe frontend implementation
 
 ## Tech Stack
 
-### Frontend
+The repository contains two separate applications with different tech stacks:
+
+### Python Desktop App
+- Python
+- Azure Cognitive Services Speech SDK
+- tkinter for GUI
+- python-dotenv for environment management
+
+### Web Application
 - React 18 with TypeScript
-- Vite for build tooling
+- Vite for build tooling and HMR (Hot Module Replacement)
+  - Using @vitejs/plugin-react for Babel-based Fast Refresh
+  - Using @vitejs/plugin-react-swc for SWC-based Fast Refresh
 - TailwindCSS for styling
 - Framer Motion for animations
 - Microsoft Cognitive Services Speech SDK
 - Heroicons for UI icons
-
-### Backend
-- Python
-- Azure Cognitive Services Speech SDK
-- tkinter for legacy GUI support
-- python-dotenv for environment management
+- ESLint with TypeScript-aware configuration
 
 ## Prerequisites
 
-1. Python 3.x
-2. Node.js (v18 or higher recommended)
+### For Python Desktop App
+1. Python 3.11 or higher
+2. Azure Cognitive Services Speech account
+3. Required Python packages (see requirements.txt)
+
+### For Web Application
+1. Node.js (v18 or higher recommended)
+2. npm or yarn package manager
 3. Azure Cognitive Services Speech account
-4. npm or yarn package manager
 
 ## Setup
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd RealTimeTranslation
-   ```
-
-2. Set up the Python environment:
+### Python Desktop App
+1. Set up the Python environment:
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. Install frontend dependencies:
+2. Configure environment variables:
+   - Copy `.env.example` to `.env`
+   - Add your Azure Speech Service credentials:
+     ```
+     SPEECH_KEY=your_azure_speech_key
+     SPEECH_REGION=your_azure_region
+     ```
+
+3. Run the application:
+   ```bash
+   python translator_app.py
+   ```
+
+### Web Application
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd RealTimeTranslation
+   ```
+
+2. Install frontend dependencies:
    ```bash
    cd client
    npm install
    ```
 
-4. Configure environment variables:
+3. Configure environment variables:
    - Copy `.env.example` to `.env` in the root directory
    - Add your Azure Speech Service credentials:
      ```
@@ -65,38 +104,64 @@ A modern web application for real-time speech translation using Azure Cognitive 
 
 ## Development
 
-1. Start the Python backend:
+### Python Desktop App
+1. Run the application:
    ```bash
    python translator_app.py
    ```
 
-2. Start the frontend development server:
+### Web Application
+1. Start the frontend development server:
    ```bash
    cd client
    npm run dev
    ```
 
-3. Open `http://localhost:38220` in your browser
+2. Open `http://localhost:38220` in your browser
+
+### Frontend Development Notes
+- The project uses TypeScript with strict type checking
+- ESLint is configured for type-aware linting
+- React 18.3 is used with modern JSX runtime
+- Hot Module Replacement (HMR) is enabled for fast development
+- Custom ESLint rules and TypeScript configurations are in place for code quality
 
 ## Project Structure
 
 ```
 RealTimeTranslation/
-├── client/                 # Frontend React application
-│   ├── src/               # Source code
-│   ├── public/            # Static assets
-│   ├── package.json       # Frontend dependencies
-│   └── vite.config.ts     # Vite configuration
+├── translator_app.py      # Standalone Python desktop application
+├── requirements.txt       # Python dependencies for desktop app
+├── settings.json         # Settings for Python app
 │
-├── .venv/                 # Python virtual environment
-├── translator_app.py      # Python backend implementation
-├── requirements.txt       # Python dependencies
-├── settings.json          # Application settings
-└── README.md             # Project documentation
+├── client/              # Independent web application
+│   ├── src/            # Source code
+│   ├── public/         # Static assets
+│   ├── package.json    # Frontend dependencies
+│   └── vite.config.ts  # Vite configuration
+│
+├── .venv/              # Python virtual environment
+└── README.md          # Project documentation
 ```
 
 ## Key Features
 
+### Python Desktop App
+1. **Speech Recognition**
+   - Real-time speech capture and recognition
+   - Support for multiple input languages
+   - Configurable speech recognition settings
+
+2. **Translation**
+   - Simultaneous translation to multiple languages
+   - Support for bilingual output
+   - High-accuracy Azure-powered translation
+
+3. **User Interface**
+   - Simple desktop interface using tkinter
+   - Easy to use and navigate
+
+### Web Application
 1. **Speech Recognition**
    - Real-time speech capture and recognition
    - Support for multiple input languages
