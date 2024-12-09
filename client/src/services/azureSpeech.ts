@@ -112,17 +112,10 @@ export class AzureSpeechService {
       const audioConfig = speechsdk.AudioConfig.fromDefaultMicrophoneInput();
 
       // Set additional properties for better recognition
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "500");
-      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "1000");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "15000");
+      speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "5000");
       speechConfig.setProperty(speechsdk.PropertyId.SpeechServiceResponse_RequestDetailedResultTrueFalse, "true");
-      speechConfig.setProperty(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "3500");
-      
-      // Enable semantic segmentation for English input languages
-      if (config.inputLanguage.startsWith('en-')) {
-        console.log('Enabling semantic segmentation for English input...');
-        speechConfig.setProperty("speech.segmentation.strategy", "Semantic");
-      }
-      
+      speechConfig.setProperty(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "2000");   
       speechConfig.enableDictation();
       
       // Create recognizer
