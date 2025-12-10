@@ -128,14 +128,31 @@ export class AzureSpeechService {
       // Set up event handlers with better error handling
       this.setupRecognizer(this.translationRecognizer);
 
-      // Start continuous recognition
+      // Start continuous recognition with explicit error handling
       console.log('Starting continuous recognition...');
-      await this.translationRecognizer.startContinuousRecognitionAsync();
-      console.log('Translation started successfully');
-      this.isRecognizing = true;
+      await new Promise<void>((resolve, reject) => {
+        this.translationRecognizer?.startContinuousRecognitionAsync(
+          () => {
+            console.log('Translation started successfully');
+            this.isRecognizing = true;
+            resolve();
+          },
+          (err) => {
+            console.error('Failed to start translation:', err);
+            const errorValue = err as unknown;
+            const message = errorValue instanceof Error
+              ? errorValue.message
+              : 'Failed to start translation session.';
+            this.onError(this.getFriendlyErrorMessage(message));
+            reject(err);
+          }
+        );
+      });
     } catch (error) {
       console.error('Error during speech recognition:', error);
-      this.onError(error instanceof Error ? error.message : 'Unknown error occurred');
+      this.onError(
+        this.getFriendlyErrorMessage(error instanceof Error ? error.message : 'Unknown error occurred')
+      );
       throw error;
     }
   }
@@ -198,9 +215,23 @@ export class AzureSpeechService {
     recognizer.canceled = (_, event) => {
       if (event.reason === speechsdk.CancellationReason.Error) {
         console.error('Speech recognition canceled:', event);
-        this.onError(`Error: ${event.errorDetails} (Code: ${event.errorCode})`);
+        const friendlyMessage = this.getFriendlyErrorMessage(event.errorDetails || 'Recognition canceled');
+        this.onError(`${friendlyMessage} (Code: ${event.errorCode})`);
+        this.isRecognizing = false;
       }
     };
+  }
+
+  private getFriendlyErrorMessage(message: string): string {
+    if (message.includes('StatusCode: 1006') || message.includes('Code: 4')) {
+      return 'Unable to reach Azure Speech service. Please confirm your network connection and that your Azure Speech key and region are correct.';
+    }
+
+    if (message.toLowerCase().includes('microphone')) {
+      return 'Microphone access is required. Please allow microphone permissions in your browser settings.';
+    }
+
+    return message;
   }
 
   async stopTranslation(): Promise<void> {
